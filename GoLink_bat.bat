@@ -1,7 +1,7 @@
 ::[Bat To Exe Converter]
 ::
 ::YAwzoRdxOk+EWAjk
-::fBw5plQjdCyDJGyX8VAjFBZbRAWPAE+1EbsQ5+n//NakqkwJc9ILOKbW27OLYM4c/AWyOdZ/higP1ItcWCQNLS34Nk8EhCBLtWvl
+::fBw5plQjdCeDJF6N4EolOCdzQyiLMmCGIbow4ebw0OOErQMUV+1f
 ::YAwzuBVtJxjWCl3EqQJgSA==
 ::ZR4luwNxJguZRRnk
 ::Yhs/ulQjdF+5
@@ -26,16 +26,13 @@
 ::ZQ0/vhVqMQ3MEVWAtB9wSA==
 ::Zg8zqx1/OA3MEVWAtB9wSA==
 ::dhA7pRFwIByZRRnk
-::Zh4grVQjdCyDJGyX8VAjFBZbRAWPAES0A5EO4f7+086CsUYJW/IDX4D307qFbuUL7yU=
+::Zh4grVQjdCeDJF6N4EolOCdzQyiLMmCGIbow4ebwoe+fpy0=
 ::YB416Ek+ZG8=
 ::
 ::
 ::978f952a14a936cc963da21a135fa983
 @echo off
-setlocal EnableDelayedExpansion
-
-:: Clear input buffer
->nul 2>&1 <nul set /p = || ver >nul
+setlocal enabledelayedexpansion
 
 :: AppData storage path
 set "APP_FOLDER=%APPDATA%\OpenSite"
@@ -44,8 +41,22 @@ set "DEFAULT_URL=https://google.com"
 set "TIMEOUT_SECONDS=2"
 set "TARGET_URL="
 
-:: Create folder if missing
-if not exist "%APP_FOLDER%" mkdir "%APP_FOLDER%" >nul 2>&1
+:: Create folder if missing (suppress errors if it exists)
+mkdir "%APP_FOLDER%" >nul 2>&1
+
+:: CRITICAL FIX: Check if directory exists. If not, we can't save/read.
+if not exist "%APP_FOLDER%\" (
+    cls
+    echo.
+    echo ======================================================
+    echo ERROR: Failed to create settings directory:
+    echo %APP_FOLDER%
+    echo Please check permissions or run as administrator.
+    echo ======================================================
+    echo.
+    pause
+    goto :eof
+)
 
 :: ------------------------------------------------
 :: 1. Read saved URL (skip empty lines)
@@ -63,7 +74,8 @@ if exist "%URL_FILE%" (
 :: 2. Show saved URL + auto-open timer
 :: ------------------------------------------------
 if defined SAVED_URL (
-    echo !SAVED_URL! | findstr /i /b "http:// https://" >nul
+    :: Robustness fix: Use () for echo
+    (echo !SAVED_URL!) | findstr /i /b "http:// https://" >nul
     if errorlevel 1 (set "TARGET_URL=http://!SAVED_URL!") else (set "TARGET_URL=!SAVED_URL!")
 
     cls
@@ -107,9 +119,13 @@ if not defined NEW_URL (
     echo Using default: %DEFAULT_URL%
 ) else (
     set "NEW_URL=!NEW_URL: =!"
-    echo !NEW_URL! | findstr /i /b "http:// https://" >nul
+    :: Robustness fix: Use () for echo
+    (echo !NEW_URL!) | findstr /i /b "http:// https://" >nul
     if errorlevel 1 set "NEW_URL=http://!NEW_URL!"
-    echo !NEW_URL! > "%URL_FILE%"
+    
+    :: ROBUST FIX: Use () around echo to safely save URLs with special chars
+    (echo !NEW_URL!) > "%URL_FILE%"
+    
     set "TARGET_URL=!NEW_URL!"
     echo Saved: !TARGET_URL!
 )
