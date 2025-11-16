@@ -34,29 +34,13 @@
 @echo off
 setlocal enabledelayedexpansion
 
-:: AppData storage path
-set "APP_FOLDER=%APPDATA%\OpenSite"
-set "URL_FILE=%APP_FOLDER%\last_url.txt"
+:: ------------------------------------------------
+:: PORTABLE VERSION (No findstr, No parens)
+:: ------------------------------------------------
+set "URL_FILE=%~dp0last_url.txt"
 set "DEFAULT_URL=https://google.com"
 set "TIMEOUT_SECONDS=2"
 set "TARGET_URL="
-
-:: Create folder if missing (suppress errors if it exists)
-mkdir "%APP_FOLDER%" >nul 2>&1
-
-:: CRITICAL FIX: Check if directory exists. If not, we can't save/read.
-if not exist "%APP_FOLDER%\" (
-    cls
-    echo.
-    echo ======================================================
-    echo ERROR: Failed to create settings directory:
-    echo %APP_FOLDER%
-    echo Please check permissions or run as administrator.
-    echo ======================================================
-    echo.
-    pause
-    goto :eof
-)
 
 :: ------------------------------------------------
 :: 1. Read saved URL (skip empty lines)
@@ -74,14 +58,13 @@ if exist "%URL_FILE%" (
 :: 2. Show saved URL + auto-open timer
 :: ------------------------------------------------
 if defined SAVED_URL (
-    :: Robustness fix: Use () for echo
-    (echo !SAVED_URL!) | findstr /i /b "http:// https://" >nul
-    if errorlevel 1 (set "TARGET_URL=http://!SAVED_URL!") else (set "TARGET_URL=!SAVED_URL!")
+    set "TARGET_URL=!SAVED_URL!"
 
     cls
     echo.
     echo ===================================
     echo Saved URL: !TARGET_URL!
+    echo (File: %~dp0last_url.txt)
     echo ===================================
     echo.
     echo [Y] Open now
@@ -89,10 +72,7 @@ if defined SAVED_URL (
     echo.
     echo Auto-open in %TIMEOUT_SECONDS% seconds...
 
-    :: Wait with real timeout
     >nul 2>&1 timeout /t %TIMEOUT_SECONDS% /nobreak >nul
-
-    :: Check for key press (Y is default)
     choice /c YNE /n /t 1 /d Y >nul 2>&1
     if errorlevel 3 goto GET_NEW_URL
     if errorlevel 2 goto GET_NEW_URL
@@ -119,14 +99,24 @@ if not defined NEW_URL (
     echo Using default: %DEFAULT_URL%
 ) else (
     set "NEW_URL=!NEW_URL: =!"
-    :: Robustness fix: Use () for echo
-    (echo !NEW_URL!) | findstr /i /b "http:// https://" >nul
-    if errorlevel 1 set "NEW_URL=http://!NEW_URL!"
     
-    :: ROBUST FIX: Use () around echo to safely save URLs with special chars
-    (echo !NEW_URL!) > "%URL_FILE%"
+    :: ROBUST FIX: Replaced FINDSTR with internal check
+    set "PREFIX_7=!NEW_URL:~0,7!"
+    set "PREFIX_8=!NEW_URL:~0,8!"
+
+    if /I "!PREFIX_7!" == "http://" (
+        set "TARGET_URL=!NEW_URL!"
+    ) else if /I "!PREFIX_8!" == "https://" (
+        set "TARGET_URL=!NEW_URL!"
+    ) else (
+        :: No prefix found, add it
+        set "TARGET_URL=http://!NEW_URL!"
+    )
     
-    set "TARGET_URL=!NEW_URL!"
+    :: FINAL FIX: Changed (echo ... ) to simple echo
+    :: This is less safe for special chars, but your system requires it.
+    echo !TARGET_URL! > "%URL_FILE%"
+    
     echo Saved: !TARGET_URL!
 )
 echo.
@@ -145,8 +135,5 @@ echo URL: %TARGET_URL%
 echo.
 
 start "" "%TARGET_URL%"
-
-:: Short delay to ensure browser starts
 timeout /t 1 >nul
-
 exit
